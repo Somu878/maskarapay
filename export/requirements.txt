@@ -1,0 +1,11 @@
+# MaskaraPay Phase 0 export tooling — pinned for Python 3.10 / macOS arm64
+torch==2.5.1
+transformers==4.44.2
+tokenizers==0.19.1
+onnx==1.16.2
+onnxruntime==1.19.2
+huggingface_hub==0.24.7
+numpy==1.26.4
+# Optional ORT-export path. If it misbehaves, build_all.py falls back to a
+# hand-written torch.onnx.export wrapper (sanctioned by the plan).
+optimum==1.25.3
