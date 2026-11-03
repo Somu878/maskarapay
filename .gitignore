@@ -1,0 +1,14 @@
+# Rust
+/target/
+
+# Python one-off export tooling
+export/.venv/
+export/__pycache__/
+# raw HF weights (~436 MB+) are re-downloadable, never commit
+export/model-source/
+
+# ONNX binaries are re-generable (export/ pipeline), never commit
+assets/*.onnx
+
+# OS cruft
+.DS_Store
