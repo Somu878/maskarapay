@@ -17,6 +17,7 @@ fi
 
 export_dir="${MASKARA_EXPORT_DIR:-$root/export}"
 assets_dir="${MASKARA_ASSETS_DIR:-$root/assets}"
+export_python="${MASKARA_EXPORT_PYTHON:-3.12}"
 export MASKARA_ASSETS_DIR="$assets_dir"
 export MASKARA_EXPORT_DIR="$export_dir"
 
@@ -41,16 +42,32 @@ fi
 echo "maskara runtime model missing; downloading on this instance via download_model.py"
 cd "$export_dir"
 
+ensure_venv_python() {
+  local venv_python="$export_dir/.venv/bin/python"
+  if [[ ! -x "$venv_python" ]]; then
+    return
+  fi
+
+  local venv_version
+  venv_version=$("$venv_python" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
+  if [[ "$venv_version" != "$export_python" ]]; then
+    echo "recreating export virtual environment with Python $export_python (found $venv_version)"
+    rm -rf "$export_dir/.venv"
+  fi
+}
+
 if command -v uv >/dev/null 2>&1; then
-  [[ -d .venv ]] || uv venv .venv
+  ensure_venv_python
+  uv venv --python "$export_python" .venv
   uv pip install -r requirements.txt
   uv run python ensure_model.py
-elif [[ -x .venv/bin/python ]]; then
-  .venv/bin/pip install -r requirements.txt
-  .venv/bin/python ensure_model.py
-else
-  python3 -m venv .venv
+elif command -v "python$export_python" >/dev/null 2>&1; then
+  ensure_venv_python
+  "python$export_python" -m venv .venv
   .venv/bin/pip install -U pip
   .venv/bin/pip install -r requirements.txt
   .venv/bin/python ensure_model.py
+else
+  echo "Python $export_python is required for the pinned PyTorch export dependencies; install uv or python$export_python" >&2
+  exit 1
 fi

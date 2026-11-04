@@ -47,7 +47,9 @@ calls `export/download_model.py` and then exports ONNX.
 
 The first start therefore needs RAM for the Python export (prefer `t3.small`
 or larger) and outbound access to Hugging Face. Later restarts skip the
-download when the ONNX files are already on disk.
+download when the ONNX files are already on disk. The bootstrap explicitly
+uses Python 3.12: the pinned PyTorch version does not support Ubuntu 26.04's
+default Python 3.14.
 
 ## 3. Launch the EC2 instance
 

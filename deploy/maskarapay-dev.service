@@ -11,6 +11,7 @@ WorkingDirectory=/opt/maskarapay
 Environment=MASKARA_BIND_ADDR=127.0.0.1:8080
 Environment=MASKARA_ASSETS_DIR=/opt/maskarapay/assets
 Environment=MASKARA_EXPORT_DIR=/opt/maskarapay/export
+Environment=MASKARA_EXPORT_PYTHON=3.12
 Environment=MASKARA_ENSURE_MODEL=/opt/maskarapay/bin/ensure-model
 Environment=RUST_LOG=service=info
 ExecStart=/opt/maskarapay/bin/maskara-service

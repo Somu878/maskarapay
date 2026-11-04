@@ -104,6 +104,7 @@ are ignored by Git.
 | `MASKARA_MODEL_PATH` | unset | Use one explicit ONNX file; disables the INT8/F32 fallback. |
 | `MASKARA_MAX_TEXT_CHARS` | `20000` | Maximum Unicode characters accepted in `text`. |
 | `MASKARA_EXPORT_DIR` | `export/` in this repo, or `/opt/maskarapay/export` | Python download/export tooling used when the runtime model is missing. |
+| `MASKARA_EXPORT_PYTHON` | `3.12` | Python minor version used for the pinned PyTorch export dependencies. |
 | `MASKARA_ENSURE_MODEL` | `deploy/ensure-model.sh` or `/opt/maskarapay/bin/ensure-model` | Bootstrap script the server runs on this instance if ONNX is absent. |
 | `MASKARA_SKIP_MODEL_DOWNLOAD` | unset | Set to `1` to disable the on-instance download. |
 
