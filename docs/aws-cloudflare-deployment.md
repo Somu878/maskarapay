@@ -74,7 +74,7 @@ only while building this release; the service runs the compiled binary.
 
 ```bash
 sudo apt-get update
-sudo apt-get install -y build-essential ca-certificates curl git pkg-config python3 python3-venv python3-pip
+sudo apt-get install -y build-essential ca-certificates curl git libssl-dev pkg-config python3 python3-venv python3-pip
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 . "$HOME/.cargo/env"
 curl -LsSf https://astral.sh/uv/install.sh | sh
