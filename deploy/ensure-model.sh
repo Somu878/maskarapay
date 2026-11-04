@@ -58,7 +58,7 @@ ensure_venv_python() {
 
 if command -v uv >/dev/null 2>&1; then
   ensure_venv_python
-  uv venv --python "$export_python" .venv
+  uv venv --clear --python "$export_python" .venv
   uv pip install -r requirements.txt
   uv run python ensure_model.py
 elif command -v "python$export_python" >/dev/null 2>&1; then
