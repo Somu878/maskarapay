@@ -1,0 +1,129 @@
+name: Build and deploy MaskaraPay
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify_and_package:
+    name: Verify and package Linux release
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Install Rust with rustfmt
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - name: Install native build dependencies
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libssl-dev pkg-config
+
+      - name: Format check
+        working-directory: service
+        run: cargo fmt --check
+
+      - name: Unit tests
+        working-directory: service
+        run: cargo test --locked
+
+      - name: Build release binary
+        working-directory: service
+        run: |
+          cargo build --release --locked
+          mkdir -p ../dist
+          cp target/release/service ../dist/maskara-service
+          sha256sum ../dist/maskara-service | awk '{print $1}' > ../dist/maskara-service.sha256
+
+      - name: Upload release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: maskarapay-release
+          path: |
+            dist/maskara-service
+            dist/maskara-service.sha256
+          if-no-files-found: error
+          retention-days: 1
+
+  deploy_production:
+    name: Deploy production
+    needs: verify_and_package
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
+    environment:
+      name: production
+      url: https://${{ vars.API_HOST }}
+    concurrency:
+      group: maskarapay-production
+      cancel-in-progress: false
+    steps:
+      - name: Check out deployment script
+        uses: actions/checkout@v4
+
+      - name: Download release artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: maskarapay-release
+          path: dist
+
+      - name: Configure temporary AWS credentials
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          role-session-name: maskarapay-${{ github.run_id }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Upload release and deploy through Systems Manager
+        env:
+          API_HOST: ${{ vars.API_HOST }}
+          DEPLOY_BUCKET: ${{ vars.DEPLOY_BUCKET }}
+          EC2_INSTANCE_ID: ${{ vars.EC2_INSTANCE_ID }}
+        run: |
+          set -euo pipefail
+          artifact_key="maskarapay/releases/${GITHUB_SHA}/maskara-service"
+          script_key="maskarapay/releases/${GITHUB_SHA}/deploy-from-s3.sh"
+          artifact_uri="s3://${DEPLOY_BUCKET}/${artifact_key}"
+          script_uri="s3://${DEPLOY_BUCKET}/${script_key}"
+          artifact_sha256="$(cat dist/maskara-service.sha256)"
+
+          aws s3 cp dist/maskara-service "$artifact_uri"
+          aws s3 cp deploy/deploy-from-s3.sh "$script_uri"
+
+          remote_command="aws s3 cp ${script_uri} /tmp/maskarapay-deploy.sh && chmod 700 /tmp/maskarapay-deploy.sh && /tmp/maskarapay-deploy.sh ${artifact_uri} ${artifact_sha256}"
+          command_id="$(aws ssm send-command \
+            --document-name AWS-RunShellScript \
+            --instance-ids "$EC2_INSTANCE_ID" \
+            --timeout-seconds 180 \
+            --comment "GitHub ${GITHUB_REPOSITORY}@${GITHUB_SHA}" \
+            --parameters commands="$remote_command" \
+            --query 'Command.CommandId' \
+            --output text)"
+
+          if ! aws ssm wait command-executed \
+            --command-id "$command_id" \
+            --instance-id "$EC2_INSTANCE_ID"; then
+            aws ssm get-command-invocation \
+              --command-id "$command_id" \
+              --instance-id "$EC2_INSTANCE_ID" \
+              --query '{status:Status,stdout:StandardOutputContent,stderr:StandardErrorContent}' \
+              --output json || true
+            exit 1
+          fi
+
+          aws ssm get-command-invocation \
+            --command-id "$command_id" \
+            --instance-id "$EC2_INSTANCE_ID" \
+            --query 'StandardOutputContent' \
+            --output text

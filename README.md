@@ -114,6 +114,9 @@ The supported first deployment is a loopback-only AWS EC2 service published
 through Cloudflare Tunnel. Follow the [AWS + Cloudflare deployment
 runbook](docs/aws-cloudflare-deployment.md); it does not require Route 53.
 
+For continuous deployment from GitHub Actions through AWS Systems Manager,
+follow the [GitHub Actions CI/CD runbook](docs/github-actions-cicd.md).
+
 ## Implementation notes
 
 | Item | Value |
