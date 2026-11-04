@@ -15,18 +15,41 @@ ALLOW = [
 ]
 
 
+def source_dir() -> str:
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "model-source")
+
+
+def is_downloaded(out: str | None = None) -> bool:
+    root = out or source_dir()
+    for name in ALLOW:
+        path = os.path.join(root, name)
+        if not os.path.isfile(path) or os.path.getsize(path) == 0:
+            return False
+    return True
+
+
+def _print_listing(path: str) -> None:
+    print("downloaded to", path)
+    for name in sorted(os.listdir(path)):
+        print(f"  {name}: {os.path.getsize(os.path.join(path, name))} bytes")
+
+
 def main():
-    out = os.path.join(os.path.dirname(os.path.abspath(__file__)), "model-source")
+    out = source_dir()
     os.makedirs(out, exist_ok=True)
+    if is_downloaded(out):
+        print("huggingface weights already present at", out)
+        _print_listing(out)
+        return
     path = snapshot_download(
         repo_id="somukandula/maskara",
         revision=REVISION,
         allow_patterns=ALLOW,
         local_dir=out,
     )
-    print("downloaded to", path)
-    for f in sorted(os.listdir(path)):
-        print(f"  {f}: {os.path.getsize(os.path.join(path, f))} bytes")
+    if not is_downloaded(path):
+        raise SystemExit(f"download incomplete under {path}")
+    _print_listing(path)
 
 
 if __name__ == "__main__":

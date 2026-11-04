@@ -3,7 +3,8 @@ mod pipeline;
 use std::{
     env,
     net::SocketAddr,
-    path::PathBuf,
+    path::{Path, PathBuf},
+    process::Command,
     sync::{
         atomic::{AtomicU64, Ordering},
         Arc,
@@ -130,6 +131,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap_or_else(|_| DEFAULT_BIND_ADDR.to_owned())
         .parse()?;
 
+    ensure_runtime_model(&assets_dir, explicit_model_path.as_deref())?;
     let pipeline = Pipeline::load(&assets_dir, explicit_model_path)?;
     info!(
         model = MODEL_ID,
@@ -151,7 +153,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     let app = Router::new()
         .route("/healthz", get(health))
-        .route("/redact", post(inference))
+        .route("/api/v1/redact", post(inference))
         .layer(DefaultBodyLimit::max(max_body_bytes))
         .with_state(state);
 
@@ -245,6 +247,82 @@ fn log_completed_request(
 
 fn default_assets_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../assets")
+}
+
+fn runtime_model_present(assets_dir: &Path, explicit_model_path: Option<&Path>) -> bool {
+    if let Some(path) = explicit_model_path {
+        return path.is_file();
+    }
+    assets_dir.join("maskara-int8.onnx").is_file() || assets_dir.join("maskara-f32.onnx").is_file()
+}
+
+fn ensure_model_script() -> Option<PathBuf> {
+    if let Some(path) = env::var_os("MASKARA_ENSURE_MODEL") {
+        return Some(PathBuf::from(path));
+    }
+    if let Ok(exe) = env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            let next_to_bin = dir.join("ensure-model");
+            if next_to_bin.is_file() {
+                return Some(next_to_bin);
+            }
+        }
+    }
+    let repo_script = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../deploy/ensure-model.sh");
+    if repo_script.is_file() {
+        return Some(repo_script);
+    }
+    let installed = PathBuf::from("/opt/maskarapay/bin/ensure-model");
+    installed.is_file().then_some(installed)
+}
+
+fn ensure_runtime_model(
+    assets_dir: &Path,
+    explicit_model_path: Option<&Path>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    if env::var_os("MASKARA_SKIP_MODEL_DOWNLOAD").as_deref() == Some(std::ffi::OsStr::new("1")) {
+        return Ok(());
+    }
+    if runtime_model_present(assets_dir, explicit_model_path) {
+        return Ok(());
+    }
+
+    let script = ensure_model_script().ok_or(
+        "runtime ONNX model is missing and no ensure-model script was found; \
+         run deploy/ensure-model.sh on this instance or set MASKARA_ENSURE_MODEL",
+    )?;
+    info!(
+        script = %script.display(),
+        assets_dir = %assets_dir.display(),
+        "runtime model missing; downloading Hugging Face weights on this instance"
+    );
+
+    let mut command = Command::new("bash");
+    command.arg(&script);
+    command.env("MASKARA_ASSETS_DIR", assets_dir);
+    if let Some(path) = explicit_model_path {
+        command.env("MASKARA_MODEL_PATH", path);
+    }
+    if let Some(export_dir) = env::var_os("MASKARA_EXPORT_DIR") {
+        command.env("MASKARA_EXPORT_DIR", export_dir);
+    } else {
+        let repo_export = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../export");
+        if repo_export.is_dir() {
+            command.env("MASKARA_EXPORT_DIR", repo_export);
+        }
+    }
+
+    let status = command.status()?;
+    if !status.success() {
+        return Err(format!(
+            "model download/export failed with status {status}; see deploy/ensure-model.sh output"
+        )
+        .into());
+    }
+    if !runtime_model_present(assets_dir, explicit_model_path) {
+        return Err("model bootstrap finished but the runtime ONNX file is still missing".into());
+    }
+    Ok(())
 }
 
 fn env_usize(name: &str, default: usize) -> Result<usize, Box<dyn std::error::Error>> {

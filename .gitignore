@@ -3,7 +3,8 @@
 
 # Python one-off export tooling
 export/.venv/
-export/__pycache__/
+__pycache__/
+*.pyc
 # raw HF weights (~436 MB+) are re-downloadable, never commit
 export/model-source/
 
