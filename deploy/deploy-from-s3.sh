@@ -51,10 +51,11 @@ if ! healthcheck; then
   exit 1
 fi
 
-# The Tunnel reconnects automatically, but restart an active connector after
+# The Tunnel reconnects automatically, but restart an installed connector after
 # a release because this deployment intentionally treats it as the proxy.
-if systemctl is-active --quiet cloudflared; then
+if systemctl cat cloudflared >/dev/null 2>&1; then
   systemctl restart cloudflared
+  systemctl is-active --quiet cloudflared
 fi
 
 echo "MaskaraPay deployment completed"

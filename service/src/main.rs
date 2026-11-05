@@ -14,7 +14,8 @@ use std::{
 
 use axum::{
     extract::{DefaultBodyLimit, State},
-    http::StatusCode,
+    http::{HeaderValue, StatusCode},
+    middleware,
     response::{IntoResponse, Response},
     routing::{get, post},
     Json, Router,
@@ -155,6 +156,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/healthz", get(health))
         .route("/api/v1/redact", post(inference))
         .layer(DefaultBodyLimit::max(max_body_bytes))
+        .layer(middleware::map_response(add_version_header))
         .with_state(state);
 
     let listener = TcpListener::bind(bind_addr).await?;
@@ -163,6 +165,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_graceful_shutdown(shutdown_signal())
         .await?;
     Ok(())
+}
+
+async fn add_version_header(mut response: Response) -> Response {
+    response.headers_mut().insert(
+        "x-maskara-version",
+        HeaderValue::from_static(env!("CARGO_PKG_VERSION")),
+    );
+    response
 }
 
 async fn health() -> Json<HealthResponse> {

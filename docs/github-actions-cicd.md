@@ -3,8 +3,8 @@
 This GitHub Actions workflow tests the Rust service, builds a Linux release
 binary, uploads it to a private S3 release prefix, then tells AWS Systems
 Manager to install it on the production EC2 instance. The instance validates
-the SHA-256, restarts `maskarapay`, checks `/healthz`, and restarts active
-`cloudflared`.
+the SHA-256, restarts `maskarapay`, checks `/healthz`, and restarts and
+verifies the installed `cloudflared` service.
 
 The ONNX model remains in `/opt/maskarapay/assets` on the EC2 instance. CI
 never downloads or exports the model, so it cannot recreate the previous
