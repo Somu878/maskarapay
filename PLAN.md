@@ -22,9 +22,10 @@ paying server**:
 - README + systemd units document the payment env vars.
 - `.gitignore` now also excludes `.env` (keys must never be committed).
 
-**Gap:** the Rust server-side 402 gate does not exist yet — `service/src/main.rs`
-has no payment code. The README currently describes payments that are not built;
-that is fixed by M1 below (docs updated only after tests pass).
+**M1 completed:** the Rust server-side 402 gate is implemented in
+`service/src/payment.rs` and is wired into `service/src/main.rs`. The complete
+M1 test matrix passes locally; payment remains disabled until
+`MASKARA_PAYEE_ADDRESS` is set.
 
 ## 2. Protocol facts verified today against official docs (docs.x402.org + x402-foundation specs)
 
@@ -47,7 +48,7 @@ that is fixed by M1 below (docs updated only after tests pass).
 
 ## 3. Milestones (in order; M1–M3 = testnet checkpoint, M4 = final)
 
-### M1 — Local 402 gate (no money, no accounts) — IN PROGRESS
+### M1 — Local 402 gate (no money, no accounts) — DONE (commit `2520e1a`, 15 Nov 2026)
 Server-side gate in `service/src/payment.rs`, wired into `main.rs`:
 - `MASKARA_PAYEE_ADDRESS` unset → everything free (current behavior preserved).
 - Set on `/api/v1/redact` only; `/healthz` stays free.
@@ -59,15 +60,19 @@ malformed payment, wrong amount/network/asset/payTo, replay, settle-fail,
 verify-fail, facilitator-down, healthz-free, v1+v2 happy paths, price parsing),
 plus the existing pipeline tests.
 
-### M2 — Real payment on Base Sepolia (testnet, free) — BLOCKED on Somu
-- Somu creates two throwaway wallets (seller receive + buyer) and funds them
-  from official faucets he verifies himself (Circle faucet is referenced in
-  docs/x402.md). No address or key from any doc is used.
-- Local E2E first (mock facilitator + server + pay client), then the real
-  `x402.org/facilitator` against a locally-run server.
-- Check facilitator request/response shape against the live facilitator.
+### M2 — Real payment on Base Sepolia (testnet, free) — READY, awaiting go-ahead
+- Wallets exist locally (keys in `~/.maskarapay-testnet/`, never printed/committed):
+  seller `0x179A0fcCF2Fdc7875f0bB66dBc8001f6b9e490F3` (receives), buyer
+  `0xb0c8fDa371a39a6D61597C1E6301b9F8E227214e` — funded on-chain with 20.0 USDC
+  (verified via RPC 15 Nov). Circle faucet (faucet.circle.com → USDC → Base
+  Sepolia) is the verified funding source.
+- Live facilitator verified: `https://x402.org/facilitator/supported` serves
+  v2 `exact` on `eip155:84532` and v1 `exact` on `base-sepolia`.
+- ~~pay_client.py broken against all current `eth-account` releases~~ — fixed
+  (commit `db66c46`, compat shim, pinned `eth-account==0.14.0`, E2E proven
+  locally on v1+v2 with throwaway keys).
 Acceptance: pay client prints redacted text + receipt with a tx hash visible on
-a Base Sepolia explorer.
+a Base Sepolia explorer. Somu's go-ahead required for the real paid call.
 
 ### M3 — Deploy and prove — needs Somu's EC2/Cloudflare access
 - Bring the existing EC2 + Tunnel deployment back up; confirm

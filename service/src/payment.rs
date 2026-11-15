@@ -134,8 +134,8 @@ impl PaymentConfig {
             .unwrap_or_default()
             .trim()
             .to_string();
-        let price_usd = env::var("MASKARA_PRICE_USD")
-            .unwrap_or_else(|_| DEFAULT_PRICE_USD.to_string());
+        let price_usd =
+            env::var("MASKARA_PRICE_USD").unwrap_or_else(|_| DEFAULT_PRICE_USD.to_string());
         let amount_atomic = parse_price_usd(&price_usd)?;
         let network = env::var("MASKARA_X402_NETWORK")
             .unwrap_or_else(|_| DEFAULT_NETWORK.to_string())
@@ -202,8 +202,7 @@ fn basic_auth_header(user_secret: &str) -> Result<String, String> {
 /// never applied — "0.0000001" is an error.
 pub fn parse_price_usd(raw: &str) -> Result<String, String> {
     let text = raw.trim();
-    let invalid =
-        || format!("MASKARA_PRICE_USD {raw:?} is not a decimal USD amount like \"0.01\"");
+    let invalid = || format!("MASKARA_PRICE_USD {raw:?} is not a decimal USD amount like \"0.01\"");
     if text.is_empty() {
         return Err(invalid());
     }
@@ -258,8 +257,7 @@ fn decode_b64_json(raw: &str) -> Result<Value, String> {
     if text.is_empty() {
         return Err("payment header is empty".to_string());
     }
-    let engines: [&GeneralPurpose; 4] =
-        [&STANDARD, &STANDARD_NO_PAD, &URL_SAFE, &URL_SAFE_NO_PAD];
+    let engines: [&GeneralPurpose; 4] = [&STANDARD, &STANDARD_NO_PAD, &URL_SAFE, &URL_SAFE_NO_PAD];
     for engine in engines {
         if let Some(value) = decode_with(engine, text) {
             return Ok(value);
@@ -392,7 +390,10 @@ impl FacilitatorClient {
         if version == 1 {
             body["x402Version"] = json!(1);
         }
-        let mut request = self.http.post(format!("{}{path}", self.base_url)).json(&body);
+        let mut request = self
+            .http
+            .post(format!("{}{path}", self.base_url))
+            .json(&body);
         if let Some(auth) = &self.auth_header {
             request = request.header(reqwest::header::AUTHORIZATION, auth);
         }
@@ -519,9 +520,7 @@ impl ReplayCache {
     }
 
     fn prune(entries: &mut HashMap<String, u64>, now: u64, max_entries: usize) {
-        entries.retain(|_, valid_before| {
-            valid_before.saturating_add(REPLAY_GRACE_SECONDS) >= now
-        });
+        entries.retain(|_, valid_before| valid_before.saturating_add(REPLAY_GRACE_SECONDS) >= now);
         // Hard cap: best-effort eviction of arbitrary entries so the cache
         // cannot grow without bound under a flood of payments.
         while entries.len() >= max_entries {
@@ -599,7 +598,9 @@ fn decimal_field(object: &Map<String, Value>, key: &str) -> Result<u128, GateRej
     }
 }
 
-fn check_scheme_network(requirement: &Map<String, Value>) -> Result<&'static NetworkSpec, GateReject> {
+fn check_scheme_network(
+    requirement: &Map<String, Value>,
+) -> Result<&'static NetworkSpec, GateReject> {
     let scheme = requirement
         .get("scheme")
         .and_then(Value::as_str)
@@ -688,9 +689,8 @@ fn validate_payment(
         .get("x402Version")
         .and_then(Value::as_u64)
         .filter(|value| *value == 1 || *value == 2)
-        .ok_or_else(|| {
-            GateReject::Malformed("payment x402Version must be 1 or 2".to_string())
-        })? as u8;
+        .ok_or_else(|| GateReject::Malformed("payment x402Version must be 1 or 2".to_string()))?
+        as u8;
     if version != header_version {
         return Err(GateReject::Malformed(format!(
             "payment x402Version {version} does not match the payment header used"
@@ -726,7 +726,9 @@ fn validate_payment(
     let signature = payload
         .get("signature")
         .and_then(Value::as_str)
-        .ok_or_else(|| GateReject::Malformed("payment payload is missing \"signature\"".to_string()))?;
+        .ok_or_else(|| {
+            GateReject::Malformed("payment payload is missing \"signature\"".to_string())
+        })?;
     require_hex_bytes(signature, 130, "payment signature")?;
 
     let authorization = payload
@@ -789,7 +791,9 @@ fn validate_payment(
         return Err(GateReject::Challenge("payment_expired".to_string()));
     }
     if valid_after >= valid_before {
-        return Err(GateReject::Challenge("authorization_window_invalid".to_string()));
+        return Err(GateReject::Challenge(
+            "authorization_window_invalid".to_string(),
+        ));
     }
 
     let nonce_key = nonce[2..].to_ascii_lowercase();
@@ -829,11 +833,7 @@ impl PaymentState {
 /// `middleware::from_fn_with_state(state, payment::gate)`; handler-agnostic —
 /// the wrapped handler's body extraction works untouched. Payments disabled
 /// (`enabled == false`) is a pure pass-through.
-pub async fn gate(
-    State(state): State<PaymentState>,
-    request: Request,
-    next: Next,
-) -> Response {
+pub async fn gate(State(state): State<PaymentState>, request: Request, next: Next) -> Response {
     if !state.config.enabled {
         return next.run(request).await;
     }
@@ -844,7 +844,10 @@ pub async fn gate(
         request.headers().get(HEADER_PAYMENT_V1),
     ) {
         (Some(_), Some(_)) => {
-            warn!(outcome = "malformed", "payment gate: both payment headers present");
+            warn!(
+                outcome = "malformed",
+                "payment gate: both payment headers present"
+            );
             return GateReject::Malformed(
                 "only one of PAYMENT-SIGNATURE or X-PAYMENT may be sent".to_string(),
             )
@@ -866,12 +869,19 @@ pub async fn gate(
 
     let raw = match request
         .headers()
-        .get(if header_version == 2 { HEADER_PAYMENT_V2 } else { HEADER_PAYMENT_V1 })
+        .get(if header_version == 2 {
+            HEADER_PAYMENT_V2
+        } else {
+            HEADER_PAYMENT_V1
+        })
         .and_then(|value| value.to_str().ok())
     {
         Some(raw) => raw,
         None => {
-            warn!(outcome = "malformed", "payment gate: payment header is not ASCII");
+            warn!(
+                outcome = "malformed",
+                "payment gate: payment header is not ASCII"
+            );
             return GateReject::Malformed("payment header is not valid".to_string())
                 .into_response_with(&state.config);
         }
@@ -968,7 +978,10 @@ async fn process_payment(
     // Mark the nonce used *before* settling: a retry of this exact payment —
     // even after a lost settle response — is refused here without another
     // facilitator round trip (no duplicate charge, no free result).
-    if !state.replay.insert(payment.nonce_key.clone(), payment.valid_before, now) {
+    if !state
+        .replay
+        .insert(payment.nonce_key.clone(), payment.valid_before, now)
+    {
         return Err(GateReject::Challenge("payment_already_used".to_string()));
     }
 
@@ -1068,7 +1081,9 @@ impl GateReject {
                     Json(v1_challenge_body(config, &error)),
                 )
                     .into_response();
-                if let Ok(value) = HeaderValue::from_str(&encode_b64_json(&v2_challenge(config, &error))) {
+                if let Ok(value) =
+                    HeaderValue::from_str(&encode_b64_json(&v2_challenge(config, &error)))
+                {
                     response.headers_mut().insert(HEADER_CHALLENGE_V2, value);
                 }
                 response
@@ -1117,8 +1132,21 @@ mod tests {
     #[test]
     fn price_parsing_rejects_nonsense() {
         for bad in [
-            "", "   ", "0", "0.0", "0.000000", "abc", "-0.01", "+0.01", "1e-3",
-            "0.0000001", ".5", "5.", "1.2.3", "nan", "inf",
+            "",
+            "   ",
+            "0",
+            "0.0",
+            "0.000000",
+            "abc",
+            "-0.01",
+            "+0.01",
+            "1e-3",
+            "0.0000001",
+            ".5",
+            "5.",
+            "1.2.3",
+            "nan",
+            "inf",
         ] {
             assert!(parse_price_usd(bad).is_err(), "expected error for {bad:?}");
         }
@@ -1136,8 +1164,10 @@ mod tests {
         let encoded = encode_b64_json(&value);
         // Compact separators, standard padded alphabet.
         assert!(!encoded.contains('-') && !encoded.contains('_'));
-        assert_eq!(encoded, base64::engine::general_purpose::STANDARD.encode(
-            serde_json::to_vec(&value).unwrap()));
+        assert_eq!(
+            encoded,
+            base64::engine::general_purpose::STANDARD.encode(serde_json::to_vec(&value).unwrap())
+        );
         assert_eq!(decode_b64_json(&encoded).unwrap(), value);
     }
 
@@ -1148,8 +1178,8 @@ mod tests {
         let padded_len = encoded.len();
 
         // URL-safe alphabet must still decode (only differs on +/ chars).
-        let urlsafe = base64::engine::general_purpose::URL_SAFE.encode(
-            serde_json::to_vec(&value).unwrap());
+        let urlsafe =
+            base64::engine::general_purpose::URL_SAFE.encode(serde_json::to_vec(&value).unwrap());
         assert_eq!(decode_b64_json(&urlsafe).unwrap(), value);
 
         // Missing padding tolerated.
@@ -1225,11 +1255,14 @@ mod tests {
     }
 }
 
-
 #[cfg(test)]
 mod integration {
     use super::*;
-    use axum::{middleware, routing::{get, post}, Router};
+    use axum::{
+        middleware,
+        routing::{get, post},
+        Router,
+    };
     use serde_json::json;
     use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
@@ -1310,7 +1343,9 @@ mod integration {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = listener.local_addr().unwrap();
         tokio::spawn(async move {
-            axum::serve(listener, app).await.expect("mock facilitator server");
+            axum::serve(listener, app)
+                .await
+                .expect("mock facilitator server");
         });
         format!("http://{address}")
     }
@@ -1430,10 +1465,7 @@ mod integration {
 
     /// Initial unpaid request: the 402 response whose PAYMENT-REQUIRED header
     /// carries the v2 challenge and whose body carries the v1 one.
-    async fn fetch_challenge(
-        client: &reqwest::Client,
-        base_url: &str,
-    ) -> reqwest::Response {
+    async fn fetch_challenge(client: &reqwest::Client, base_url: &str) -> reqwest::Response {
         post_redact(client, base_url, &[]).await
     }
 
@@ -1512,7 +1544,11 @@ mod integration {
 
         // (label, header name, raw header value)
         let cases: Vec<(&'static str, &'static str, String)> = vec![
-            ("bad base64", "payment-signature", "!!!not-base64!!!".to_string()),
+            (
+                "bad base64",
+                "payment-signature",
+                "!!!not-base64!!!".to_string(),
+            ),
             (
                 "valid base64, not JSON",
                 "payment-signature",
@@ -1541,17 +1577,18 @@ mod integration {
             (
                 "missing authorization field",
                 "payment-signature",
-                encode_b64_json(&without_auth_field(v2_payment(&requirement, 1), "validBefore")),
+                encode_b64_json(&without_auth_field(
+                    v2_payment(&requirement, 1),
+                    "validBefore",
+                )),
             ),
-            (
-                "v1: bad base64",
-                "x-payment",
-                "@@@garbage@@@".to_string(),
-            ),
+            ("v1: bad base64", "x-payment", "@@@garbage@@@".to_string()),
             (
                 "v1: missing payload",
                 "x-payment",
-                encode_b64_json(&json!({"x402Version": 1, "scheme": "exact", "network": "base-sepolia"})),
+                encode_b64_json(
+                    &json!({"x402Version": 1, "scheme": "exact", "network": "base-sepolia"}),
+                ),
             ),
         ];
 
@@ -1559,10 +1596,7 @@ mod integration {
             let response = post_redact(&client, &base_url, &[(header, value)]).await;
             assert_eq!(response.status(), 400, "case {label}");
             let body: Value = response.json().await.unwrap();
-            assert_eq!(
-                body["error"]["code"], "malformed_payment",
-                "case {label}"
-            );
+            assert_eq!(body["error"]["code"], "malformed_payment", "case {label}");
             assert!(body.get("redacted_text").is_none(), "case {label}");
         }
         assert_eq!(facilitator.verify_calls.load(Ordering::SeqCst), 0);
@@ -1593,7 +1627,10 @@ mod integration {
             let response = post_redact(
                 &client,
                 &base_url,
-                &[("payment-signature", encode_b64_json(&v2_payment(requirement, 1)))],
+                &[(
+                    "payment-signature",
+                    encode_b64_json(&v2_payment(requirement, 1)),
+                )],
             )
             .await;
             assert_eq!(response.status(), 400, "case {label}");
@@ -1664,7 +1701,10 @@ mod integration {
         let response = post_redact(
             &client,
             &base_url,
-            &[("payment-signature", encode_b64_json(&v2_payment(&requirement, 1)))],
+            &[(
+                "payment-signature",
+                encode_b64_json(&v2_payment(&requirement, 1)),
+            )],
         )
         .await;
 
@@ -1688,7 +1728,10 @@ mod integration {
         let response = post_redact(
             &client,
             &base_url,
-            &[("payment-signature", encode_b64_json(&v2_payment(&requirement, 1)))],
+            &[(
+                "payment-signature",
+                encode_b64_json(&v2_payment(&requirement, 1)),
+            )],
         )
         .await;
 
@@ -1716,7 +1759,10 @@ mod integration {
         let response = post_redact(
             &client,
             &base_url,
-            &[("payment-signature", encode_b64_json(&v2_payment(&requirement, 1)))],
+            &[(
+                "payment-signature",
+                encode_b64_json(&v2_payment(&requirement, 1)),
+            )],
         )
         .await;
 
@@ -1730,7 +1776,11 @@ mod integration {
     async fn healthz_stays_free_while_payments_are_enabled() {
         let (base_url, _facilitator) = spawn_service(test_config(true), None).await;
         let client = reqwest::Client::new();
-        let response = client.get(format!("{base_url}/healthz")).send().await.unwrap();
+        let response = client
+            .get(format!("{base_url}/healthz"))
+            .send()
+            .await
+            .unwrap();
         assert_eq!(response.status(), 200);
         assert!(response.headers().get("payment-required").is_none());
         // /healthz never triggers the gate even on a paid-enabled server.
@@ -1767,7 +1817,12 @@ mod integration {
         // request shape.
         assert_eq!(facilitator.verify_calls.load(Ordering::SeqCst), 1);
         assert_eq!(facilitator.settle_calls.load(Ordering::SeqCst), 1);
-        let verify_body = facilitator.last_verify_body.lock().unwrap().clone().unwrap();
+        let verify_body = facilitator
+            .last_verify_body
+            .lock()
+            .unwrap()
+            .clone()
+            .unwrap();
         assert!(verify_body.get("paymentPayload").is_some());
         assert!(verify_body.get("paymentRequirements").is_some());
         assert_eq!(
@@ -1775,17 +1830,25 @@ mod integration {
             payment["payload"]["authorization"]["nonce"]
         );
         assert_eq!(verify_body["paymentRequirements"]["amount"], AMOUNT);
-        assert_eq!(verify_body["paymentRequirements"]["network"], "eip155:84532");
+        assert_eq!(
+            verify_body["paymentRequirements"]["network"],
+            "eip155:84532"
+        );
         assert_eq!(verify_body["paymentRequirements"]["payTo"], PAYEE);
         assert_eq!(verify_body["paymentRequirements"]["asset"], SEPOLIA_USDC);
         // The challenge resource echoed by the client is irrelevant to the
         // facilitator; the server sends its own requirement object.
+        assert_eq!(verify_body["paymentRequirements"], challenge["accepts"][0]);
+        let settle_body = facilitator
+            .last_settle_body
+            .lock()
+            .unwrap()
+            .clone()
+            .unwrap();
         assert_eq!(
-            verify_body["paymentRequirements"],
-            challenge["accepts"][0]
+            settle_body["paymentRequirements"]["network"],
+            "eip155:84532"
         );
-        let settle_body = facilitator.last_settle_body.lock().unwrap().clone().unwrap();
-        assert_eq!(settle_body["paymentRequirements"]["network"], "eip155:84532");
     }
 
     #[tokio::test]
@@ -1798,7 +1861,12 @@ mod integration {
         let network = challenge["network"].as_str().unwrap().to_string();
 
         let payment = v1_payment(&network, 1);
-        let retry = post_redact(&client, &base_url, &[("x-payment", encode_b64_json(&payment))]).await;
+        let retry = post_redact(
+            &client,
+            &base_url,
+            &[("x-payment", encode_b64_json(&payment))],
+        )
+        .await;
 
         assert_eq!(retry.status(), 200);
         let receipt = decode_header(&retry, "x-payment-response");
@@ -1810,9 +1878,20 @@ mod integration {
 
         assert_eq!(facilitator.verify_calls.load(Ordering::SeqCst), 1);
         assert_eq!(facilitator.settle_calls.load(Ordering::SeqCst), 1);
-        let settle_body = facilitator.last_settle_body.lock().unwrap().clone().unwrap();
-        assert_eq!(settle_body["paymentRequirements"]["network"], "base-sepolia");
-        assert_eq!(settle_body["paymentRequirements"]["maxAmountRequired"], AMOUNT);
+        let settle_body = facilitator
+            .last_settle_body
+            .lock()
+            .unwrap()
+            .clone()
+            .unwrap();
+        assert_eq!(
+            settle_body["paymentRequirements"]["network"],
+            "base-sepolia"
+        );
+        assert_eq!(
+            settle_body["paymentRequirements"]["maxAmountRequired"],
+            AMOUNT
+        );
         // v1 facilitator bodies additionally carry the version at the top level.
         assert_eq!(settle_body["x402Version"], 1);
         assert!(facilitator
@@ -1829,10 +1908,7 @@ mod integration {
 
     /// Performs the unpaid request and returns the decoded v2 challenge plus
     /// its first (and only) accepted requirement.
-    async fn challenge_requirement(
-        client: &reqwest::Client,
-        base_url: &str,
-    ) -> (Value, Value) {
+    async fn challenge_requirement(client: &reqwest::Client, base_url: &str) -> (Value, Value) {
         let response = fetch_challenge(client, base_url).await;
         assert_eq!(response.status(), 402);
         let challenge = decode_header(&response, "payment-required");

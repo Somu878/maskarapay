@@ -173,10 +173,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/healthz", get(health))
         .route(
             "/api/v1/redact",
-            post(inference).layer(middleware::from_fn_with_state(
-                payment_state,
-                payment::gate,
-            )),
+            post(inference).layer(middleware::from_fn_with_state(payment_state, payment::gate)),
         )
         .layer(DefaultBodyLimit::max(max_body_bytes))
         .layer(middleware::map_response(add_version_header))
