@@ -1,3 +1,4 @@
+mod payment;
 mod pipeline;
 
 use std::{
@@ -132,6 +133,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap_or_else(|_| DEFAULT_BIND_ADDR.to_owned())
         .parse()?;
 
+    // Payment gate configuration is read from the environment once, here.
+    let payment_config = payment::PaymentConfig::from_env(&bind_addr.to_string())?;
+    if payment_config.enabled {
+        info!(
+            payee = %payment_config.payee,
+            network = %payment_config.network,
+            price_usd = %payment_config.price_usd,
+            amount_atomic = %payment_config.amount_atomic,
+            facilitator = %payment_config.facilitator_url,
+            "x402 payments enabled on /api/v1/redact"
+        );
+    } else {
+        info!("x402 payments disabled (MASKARA_PAYEE_ADDRESS unset); /api/v1/redact runs free");
+    }
+    let payment_state = payment::PaymentState::new(payment_config)?;
+
     ensure_runtime_model(&assets_dir, explicit_model_path.as_deref())?;
     let pipeline = Pipeline::load(&assets_dir, explicit_model_path)?;
     info!(
@@ -154,7 +171,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     let app = Router::new()
         .route("/healthz", get(health))
-        .route("/api/v1/redact", post(inference))
+        .route(
+            "/api/v1/redact",
+            post(inference).layer(middleware::from_fn_with_state(
+                payment_state,
+                payment::gate,
+            )),
+        )
         .layer(DefaultBodyLimit::max(max_body_bytes))
         .layer(middleware::map_response(add_version_header))
         .with_state(state);

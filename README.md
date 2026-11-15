@@ -142,8 +142,9 @@ follow the [GitHub Actions CI/CD runbook](docs/github-actions-cicd.md).
 
 `CREDIT_CARD` and `PASSWORD` are known weaker labels. Payments use
 [x402](docs/x402.md): settlement happens before inference, so an inference
-failure after a successful settlement is still charged (no refund), and
-there is no replay-protection cache for payment payloads.
+failure after a successful settlement is still charged (no refund). A
+server-side replay cache rejects reuse of a settled authorization nonce
+(402 `payment_already_used`) without another facilitator round trip.
 
 ## License
 

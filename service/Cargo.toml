@@ -18,7 +18,14 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+base64 = "0.22"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 
 [profile.release]
 opt-level = 3
-lto = "thin"
+# `lto = "thin"` never linked in this environment: the LTO link line omits
+# clang's compiler-rt (`___isPlatformVersionAtLeast` referenced by ONNX
+# Runtime's CoreML Objective-C objects), so release linking failed. The gain
+# on an inference-bound service is negligible; plain optimized builds are
+# used instead.
+lto = false
