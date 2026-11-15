@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import inspect
 import json
 import os
 import secrets
@@ -196,11 +197,13 @@ def sign_transfer_with_authorization(account, requirement, value, valid_after, v
             "nonce": nonce,
         },
     }
-    # eth_account renamed this entrypoint a few times; both spellings return a
-    # signed message with a 65-byte .signature (r || s || v).
-    signer = getattr(account, "unsafe_sign_typed_data", None) or account.sign_typed_data
-    signed = signer(typed_data)
-    signature = "0x" + signed.signature.hex()
+    # The typed-data entrypoint changed shape across eth_account releases; the
+    # shim picks the call form the installed version actually supports. Every
+    # path returns a signed message with a 65-byte .signature (r || s || v).
+    signed = _sign_typed_data_compat(account, typed_data)
+    # bytes(...) + .hex() avoids a double "0x" on older hexbytes releases,
+    # whose .hex() already includes the prefix.
+    signature = "0x" + bytes(signed.signature).hex()
     authorization = {
         "from": account.address,
         "to": requirement["payTo"],
@@ -219,6 +222,42 @@ def _network_key(requirement):
         if net in (key, cfg["caip2"]):
             return key
     raise ValueError(f"unsupported network in requirements: {requirement.get('network')!r}")
+
+
+def _sign_typed_data_compat(account, typed_data):
+    """Sign a full EIP-712 typed-data dict on any installable eth_account.
+
+    The typed-data entrypoint moved between releases and `unsafe_sign_typed_data`
+    never shipped at all, so the old `signer(typed_data)` call failed on every
+    version. Supported shapes, newest first:
+
+      * 0.13.0+: `account.sign_typed_data(full_message=...)` takes the whole
+        dict (key implied by the account; `types` may carry `EIP712Domain`).
+      * 0.10.0+: `messages.encode_typed_data(full_message=...)` builds a
+        SignableMessage that `account.sign_message` then signs.
+      * 0.8.x+:  `messages.encode_structured_data(dict)` for the same purpose.
+
+    All of them hash the same domain + message, so the signature is identical
+    regardless of which path ran.
+    """
+    signer = getattr(account, "sign_typed_data", None)
+    if signer is not None:
+        try:
+            accepts_full_message = "full_message" in inspect.signature(signer).parameters
+        except (TypeError, ValueError):
+            accepts_full_message = False
+        if accepts_full_message:
+            return signer(full_message=typed_data)
+    # Older accounts have no typed-data signer of their own: encode first, then
+    # sign the SignableMessage. Imports are lazy so the module still loads on
+    # versions that lack one of the two encoders.
+    try:
+        from eth_account.messages import encode_typed_data  # eth-account >= 0.10.0
+        signable = encode_typed_data(full_message=typed_data)
+    except ImportError:
+        from eth_account.messages import encode_structured_data  # eth-account 0.8/0.9
+        signable = encode_structured_data(typed_data)
+    return account.sign_message(signable)
 
 
 def load_account(private_key_flag):

@@ -1,2 +1,5 @@
 requests>=2.31
-eth-account>=0.13
+# Pinned exactly: the typed-data entrypoint changed shape across releases
+# (0.13.0 added full_message= on the account signer); pay_client.py's shim
+# covers 0.8.0-0.14.x, but this is the version verified end to end.
+eth-account==0.14.0
