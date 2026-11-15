@@ -25,5 +25,11 @@ PrivateTmp=true
 ProtectHome=true
 ProtectSystem=full
 
+# MaskaraPay x402 payment gating (uncomment to sell paid redactions):
+# Environment=MASKARA_PAYEE_ADDRESS=0x...
+# Environment=MASKARA_PRICE_USD=0.01
+# Environment=MASKARA_X402_NETWORK=base
+# Environment=MASKARA_FACILITATOR_URL=https://x402.org/facilitator
+
 [Install]
 WantedBy=multi-user.target

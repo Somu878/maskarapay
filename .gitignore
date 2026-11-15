@@ -5,6 +5,10 @@
 export/.venv/
 __pycache__/
 *.pyc
+
+# never commit keys or local env files (MASKARA_PRIVATE_KEY lives here)
+.env
+service/.env
 # raw HF weights (~436 MB+) are re-downloadable, never commit
 export/model-source/
 

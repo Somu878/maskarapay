@@ -47,6 +47,9 @@ Example response:
 | `POST /api/v1/redact` | Redact PII from a `{ "model", "text" }` JSON payload. |
 | `GET /healthz` | Check that the HTTP service is running. |
 
+`POST /api/v1/redact` requires an x402 micropayment when `MASKARA_PAYEE_ADDRESS`
+is set (otherwise it runs free); see [x402 payments](docs/x402.md).
+
 Requests with another model id return `400`; text longer than 20,000 Unicode
 characters returns `413` by default. Request text and redacted output are never
 written to application logs.
@@ -62,7 +65,9 @@ cargo test --release
 cargo run --release
 ```
 
-The service listens on `127.0.0.1:8080` by default. On first start it checks
+The service listens on `127.0.0.1:8080` by default. Payments are off by
+default: set `MASKARA_PAYEE_ADDRESS` to enable x402 payment gating (see
+[docs/x402.md](docs/x402.md)). On first start it checks
 for `assets/maskara-int8.onnx` or `assets/maskara-f32.onnx`. If neither file
 is present, it runs `deploy/ensure-model.sh` on this machine, which calls
 `export/download_model.py` and then exports ONNX. Later starts skip the
@@ -107,6 +112,12 @@ are ignored by Git.
 | `MASKARA_EXPORT_PYTHON` | `3.12` | Python minor version used for the pinned PyTorch export dependencies. |
 | `MASKARA_ENSURE_MODEL` | `deploy/ensure-model.sh` or `/opt/maskarapay/bin/ensure-model` | Bootstrap script the server runs on this instance if ONNX is absent. |
 | `MASKARA_SKIP_MODEL_DOWNLOAD` | unset | Set to `1` to disable the on-instance download. |
+| `MASKARA_PAYEE_ADDRESS` | unset | Payee EVM address; unset → x402 payments disabled and requests run free. |
+| `MASKARA_PRICE_USD` | `0.01` | Price per request in USD, converted to USDC atomic units (6 decimals; `0.01` → `10000`). |
+| `MASKARA_X402_NETWORK` | `base-sepolia` | Settlement chain: `base-sepolia` or `base`. |
+| `MASKARA_FACILITATOR_URL` | `https://x402.org/facilitator` | x402 facilitator used for verify/settle. |
+| `MASKARA_FACILITATOR_AUTH` | unset | Optional `user:secret` basic auth for the facilitator (e.g. Coinbase CDP). |
+| `MASKARA_RESOURCE_URL` | `http://<bind_addr>/api/v1/redact` | Resource URL advertised in 402 challenges. |
 
 ## Deployment
 
@@ -129,8 +140,10 @@ follow the [GitHub Actions CI/CD runbook](docs/github-actions-cicd.md).
 
 ## Limitations
 
-`CREDIT_CARD` and `PASSWORD` are known weaker labels. x402 payments are not
-implemented.
+`CREDIT_CARD` and `PASSWORD` are known weaker labels. Payments use
+[x402](docs/x402.md): settlement happens before inference, so an inference
+failure after a successful settlement is still charged (no refund), and
+there is no replay-protection cache for payment payloads.
 
 ## License
 
