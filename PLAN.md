@@ -60,19 +60,24 @@ malformed payment, wrong amount/network/asset/payTo, replay, settle-fail,
 verify-fail, facilitator-down, healthz-free, v1+v2 happy paths, price parsing),
 plus the existing pipeline tests.
 
-### M2 — Real payment on Base Sepolia (testnet, free) — READY, awaiting go-ahead
-- Wallets exist locally (keys in `~/.maskarapay-testnet/`, never printed/committed):
+### M2 — Real payment on Base Sepolia (testnet, free) — DONE (16 Nov 2026)
+- Wallets live locally (keys in `~/.maskarapay-testnet/`, never printed/committed):
   seller `0x179A0fcCF2Fdc7875f0bB66dBc8001f6b9e490F3` (receives), buyer
   `0xb0c8fDa371a39a6D61597C1E6301b9F8E227214e` — funded on-chain with 20.0 USDC
   (verified via RPC 15 Nov). Circle faucet (faucet.circle.com → USDC → Base
   Sepolia) is the verified funding source.
 - Live facilitator verified: `https://x402.org/facilitator/supported` serves
   v2 `exact` on `eip155:84532` and v1 `exact` on `base-sepolia`.
-- ~~pay_client.py broken against all current `eth-account` releases~~ — fixed
-  (commit `db66c46`, compat shim, pinned `eth-account==0.14.0`, E2E proven
-  locally on v1+v2 with throwaway keys).
-Acceptance: pay client prints redacted text + receipt with a tx hash visible on
-a Base Sepolia explorer. Somu's go-ahead required for the real paid call.
+- Client fixes landed: eth-account compat shim (`db66c46`), then uint256
+  validAfter/validBefore (`3b948e5`) after the real facilitator rejected
+  uint48-signed payloads with `invalid_exact_evm_signature`.
+- **First real paid call succeeded** (Somu-approved, $0.001 per call):
+  tx `0xe86c4f2c67218eb97968f4e1802182bf36e2fd6f0874cfd7019cb8a0715d8242`
+  (status 1, block 59634336) — seller 0 → 0.001 USDC, buyer 20 → 19.999,
+  redaction served with the receipt. Against a locally-run server; the
+  **public-endpoint** repeat is M3's job.
+- v1 legacy flow: proven against the mock facilitator only; not exercised
+  against the real facilitator (not needed for the product flow).
 
 ### M3 — Deploy and prove — needs Somu's EC2/Cloudflare access
 - Bring the existing EC2 + Tunnel deployment back up; confirm
