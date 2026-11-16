@@ -157,8 +157,8 @@ def sign_transfer_with_authorization(account, requirement, value, valid_after, v
     the payee, valid for the given time window — the facilitator settles it
     on-chain later.
 
-    Note the EIP-712 layout: value is uint256, validAfter/validBefore are
-    uint48, nonce is a fresh random bytes32 (a new nonce = a new, non-replayable
+    Note the EIP-712 layout: value/validAfter/validBefore are uint256 and
+    nonce is a fresh random bytes32 (a new nonce = a new, non-replayable
     grant). The domain name/version/contract come from the per-network USDC
     constants, since the domain must match the deployed asset.
     """
@@ -176,8 +176,8 @@ def sign_transfer_with_authorization(account, requirement, value, valid_after, v
                 {"name": "from", "type": "address"},
                 {"name": "to", "type": "address"},
                 {"name": "value", "type": "uint256"},
-                {"name": "validAfter", "type": "uint48"},
-                {"name": "validBefore", "type": "uint48"},
+                {"name": "validAfter", "type": "uint256"},
+                {"name": "validBefore", "type": "uint256"},
                 {"name": "nonce", "type": "bytes32"},
             ],
         },
